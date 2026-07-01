@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #SBATCH --nodes=1
-#SBATCH --account=[account]
+#SBATCH --account=PAS2136
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=gpu
@@ -25,9 +25,9 @@ srun torchrun --nnodes=1 --nproc_per_node 4 \
   -m src.training.main \
   --model ViT-B-16-1024 \
   --pretrained 'openai' \
-  --distill-model ViT-L-14 \
-  --distill-pretrained '[teacher-checkpoint]' \
-  --train-data '[training-dir]/shard-{00000..00000}.tar' \
+  --distill-model 'hf-hub:imageomics/bioclip-2.5-vith14' \
+  --distill-pretrained 'unused' \
+  --train-data '/fs/scratch/PAS2136/bioclip-distillation/10M/shards/shard-{00000..01001}.tar' \
   --dataset-type 'webdataset' \
   --dataset-resampled \
   --save-frequency 1 \

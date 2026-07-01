@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #SBATCH --nodes=1
-#SBATCH --account=[account]
+#SBATCH --account=PAS2136
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=gpu
@@ -26,8 +26,8 @@ srun torchrun --nnodes=1 --nproc_per_node 4 \
   --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$RDZV_HOST:$RDZV_PORT \
   -m src.training.precompute_teacher_embeddings \
   --teacher-model 'hf-hub:imageomics/bioclip-2.5-vith14' \
-  --input-data '[training-dir]/shard-{00000..24235}.tar' \
-  --output-dir '[teacher-embed-dir]' \
+  --input-data '/fs/scratch/PAS2136/bioclip-distillation/10M/shards/shard-{00000..01001}.tar' \
+  --output-dir '/fs/scratch/PAS2136/bioclip-distillation/10M/teacher-embeddings' \
   --batch-size 512 \
   --workers 2 \
   --precision amp \
