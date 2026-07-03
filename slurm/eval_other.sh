@@ -9,7 +9,8 @@
 #SBATCH --mem=400GB
 
 module load miniconda3/24.1.2-py310
-source activate bioclip
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate bioclip
 
 export CUDA_VISIBLE_DEVICES=0
 

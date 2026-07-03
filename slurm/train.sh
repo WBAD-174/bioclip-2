@@ -9,7 +9,8 @@
 #SBATCH --mem=800GB
 
 module load miniconda3/24.1.2-py310
-source activate bioclip
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate bioclip
 
 ##### Number of total processes
 echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
