@@ -5,6 +5,7 @@ import math
 import os
 import random
 import sys
+import tarfile
 import braceexpand
 from dataclasses import dataclass
 from multiprocessing import Value
@@ -226,6 +227,67 @@ def tarfile_to_samples_nothrow(src, handler=log_and_continue):
     return samples
 
 
+def decode_teacher_emb(array):
+    # wds.decode("pilrgb", ...) below already auto-decodes ".npy"-suffixed fields into a real
+    # numpy array (its handler set isn't image-only) by the time map_dict sees this field, so
+    # there's no bytes-parsing to do here -- just hand it to torch.
+    return torch.from_numpy(array.copy())
+
+
+def add_teacher_embed_url(shard, teacher_embed_dir):
+    shard = dict(shard)
+    shard["embed_url"] = os.path.join(teacher_embed_dir, os.path.basename(shard["url"]))
+    return shard
+
+
+def load_teacher_embed_shard(embed_url, handler=log_and_continue):
+    """Read a precompute_teacher_embeddings.py output shard fully into a {key: raw npy bytes} dict.
+
+    Kept as raw bytes (not parsed into an array) because wds.decode() below asserts every
+    non-dunder field is `bytes` before it runs; parsing happens later in map_dict, same as the
+    image/text fields.
+
+    These shards are small (one fp16 vector per sample, ~2KB), so materializing the whole shard
+    is cheap and avoids having to keep a second tar iterator in lockstep with the image tar.
+    """
+    lookup = {}
+    try:
+        with tarfile.open(embed_url) as tf:
+            for member in tf.getmembers():
+                if not member.name.endswith(".teacher_emb.npy"):
+                    continue
+                key = member.name[: -len(".teacher_emb.npy")]
+                f = tf.extractfile(member)
+                lookup[key] = f.read()
+    except Exception as exn:
+        exn.args = exn.args + (embed_url,)
+        if handler(exn):
+            return lookup
+        raise
+    return lookup
+
+
+def tarfile_pairs_to_samples_nothrow(src, handler=log_and_continue):
+    """Like tarfile_to_samples_nothrow, but each yielded sample also carries a "teacher_emb.npy"
+    raw-bytes field read from the matching precomputed-embedding shard (see add_teacher_embed_url).
+
+    Samples whose key is missing from the embedding shard (e.g. it was dropped by a decode
+    error during precompute) are skipped with a warning rather than silently misaligning
+    student/teacher batches.
+    """
+    for shard in src:
+        embed_lookup = load_teacher_embed_shard(shard["embed_url"], handler=handler)
+        for sample in tarfile_to_samples_nothrow([shard], handler=handler):
+            emb = embed_lookup.get(sample["__key__"])
+            if emb is None:
+                logging.warning(
+                    f"No precomputed teacher embedding for key {sample['__key__']!r} in "
+                    f"{shard['embed_url']}; dropping sample.")
+                continue
+            sample["teacher_emb.npy"] = emb
+            yield sample
+
+
 def pytorch_worker_seed(increment=0):
     """get dataloader worker seed from pytorch"""
     worker_info = get_worker_info()
@@ -372,6 +434,11 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
     else:
         pipeline = [wds.SimpleShardList(input_shards)]
 
+    # Precomputed teacher image embeddings (see precompute_teacher_embeddings.py) only apply to
+    # the main training shards, not continual/LAION-replay shards or val shards.
+    teacher_embed_dir = getattr(args, 'teacher_embed_dir', None)
+    use_teacher_embed = bool(is_train and not is_continual and teacher_embed_dir)
+
     # at this point we have an iterator over all the shards
     if is_train:
         if not resampled:
@@ -385,9 +452,15 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
                 wds.split_by_node,
                 wds.split_by_worker,
             ])
+        if use_teacher_embed:
+            # each shard dict still only carries a single `url`; derive the matching precomputed
+            # embedding shard's path from it so it travels through the pipeline as one unit,
+            # rather than driving a second, independently-shuffled/resampled shard stream that
+            # could drift out of sync with the image shard stream.
+            pipeline.append(wds.map(lambda shard: add_teacher_embed_url(shard, teacher_embed_dir)))
         pipeline.extend([
             # at this point, we have an iterator over the shards assigned to each worker at each node
-            tarfile_to_samples_nothrow,  # wds.tarfile_to_samples(handler=log_and_continue),
+            tarfile_pairs_to_samples_nothrow if use_teacher_embed else tarfile_to_samples_nothrow,
             wds.shuffle(
                 bufsize=_SAMPLE_SHUFFLE_SIZE,
                 initial=_SAMPLE_SHUFFLE_INITIAL,
@@ -402,30 +475,51 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
     text_type = args.continual_text_type if is_continual else args.text_type
     batch_size = args.continual_batch_size if is_continual else args.batch_size
     if text_type == 'random':
+        map_kwargs = dict(image=preprocess_img, sci=lambda sci: tokenizer(sci)[0], com=lambda com: tokenizer(com)[0], taxon=lambda taxon: tokenizer(taxon)[0], sci_com=lambda sci_com: tokenizer(sci_com)[0], taxon_com=lambda taxon_com: tokenizer(taxon_com)[0])
+        to_tuple_keys = ["image", "sci", "com", "taxon", "sci_com", "taxon_com"]
+        rename_kwargs = dict(image="jpg;png;jpeg;webp",sci="sci.txt", com="com.txt",taxon="taxon.txt", sci_com="sci_com.txt", taxon_com = "taxon_com.txt")
+        if use_teacher_embed:
+            rename_kwargs["teacher_emb"] = "teacher_emb.npy"
+            map_kwargs["teacher_emb"] = decode_teacher_emb
+            to_tuple_keys.append("teacher_emb")
         pipeline.extend([
             wds.select(filter_no_caption_or_no_image),
             wds.decode("pilrgb", handler=log_and_continue),
-            wds.rename(image="jpg;png;jpeg;webp",sci="sci.txt", com="com.txt",taxon="taxon.txt", sci_com="sci_com.txt", taxon_com = "taxon_com.txt"),
-            wds.map_dict(image=preprocess_img, sci=lambda sci: tokenizer(sci)[0], com=lambda com: tokenizer(com)[0], taxon=lambda taxon: tokenizer(taxon)[0], sci_com=lambda sci_com: tokenizer(sci_com)[0], taxon_com=lambda taxon_com: tokenizer(taxon_com)[0]),
-            wds.to_tuple("image", "sci", "com", "taxon", "sci_com", "taxon_com"),
+            wds.rename(**rename_kwargs),
+            wds.map_dict(**map_kwargs),
+            wds.to_tuple(*to_tuple_keys),
             wds.batched(batch_size, partial=not is_train)
         ])
     elif text_type == '':
+        map_kwargs = dict(image=preprocess_img, text=lambda text: tokenizer(text)[0])
+        to_tuple_keys = ["image", "text"]
+        rename_kwargs = dict(image="jpg;png;jpeg;webp", text='txt')
+        if use_teacher_embed:
+            rename_kwargs["teacher_emb"] = "teacher_emb.npy"
+            map_kwargs["teacher_emb"] = decode_teacher_emb
+            to_tuple_keys.append("teacher_emb")
         pipeline.extend([
             wds.select(filter_no_caption_or_no_image),
             wds.decode("pilrgb", handler=log_and_continue),
-            wds.rename(image="jpg;png;jpeg;webp", text='txt'),
-            wds.map_dict(image=preprocess_img, text=lambda text: tokenizer(text)[0]),
-            wds.to_tuple("image", "text"),
+            wds.rename(**rename_kwargs),
+            wds.map_dict(**map_kwargs),
+            wds.to_tuple(*to_tuple_keys),
             wds.batched(batch_size, partial=not is_train)
         ])
     else:
+        map_kwargs = dict(image=preprocess_img, text=lambda text: tokenizer(text)[0])
+        to_tuple_keys = ["image", "text"]
+        rename_kwargs = dict(image="jpg;png;jpeg;webp", text=text_type+'.txt')
+        if use_teacher_embed:
+            rename_kwargs["teacher_emb"] = "teacher_emb.npy"
+            map_kwargs["teacher_emb"] = decode_teacher_emb
+            to_tuple_keys.append("teacher_emb")
         pipeline.extend([
             wds.select(filter_no_caption_or_no_image),
             wds.decode("pilrgb", handler=log_and_continue),
-            wds.rename(image="jpg;png;jpeg;webp", text=text_type+'.txt'),
-            wds.map_dict(image=preprocess_img, text=lambda text: tokenizer(text)[0]),
-            wds.to_tuple("image", "text"),
+            wds.rename(**rename_kwargs),
+            wds.map_dict(**map_kwargs),
+            wds.to_tuple(*to_tuple_keys),
             wds.batched(batch_size, partial=not is_train)
         ])
 

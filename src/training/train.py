@@ -118,12 +118,19 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
             scheduler(step)
 
         # Randomly choose a text type for this batch
+        teacher_emb = None
         if args.text_type == 'random':
-            images, sci, com, taxon, sci_com, taxon_com = batch
+            if args.teacher_embed_dir:
+                images, sci, com, taxon, sci_com, taxon_com, teacher_emb = batch
+            else:
+                images, sci, com, taxon, sci_com, taxon_com = batch
             random.seed(step)
             texts = random.choice([sci, com, taxon, sci_com, taxon_com])
         else:
-            images, texts = batch
+            if args.teacher_embed_dir:
+                images, texts, teacher_emb = batch
+            else:
+                images, texts = batch
 
         if "continual" in data:
             continual_batch = continual_loader.next()
@@ -133,6 +140,8 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
 
         images = images.to(device=device, dtype=input_dtype, non_blocking=True)
         texts = texts.to(device=device, non_blocking=True)
+        if teacher_emb is not None:
+            teacher_emb = teacher_emb.to(device=device, non_blocking=True)
 
         data_time_m.update(time.time() - end)
         optimizer.zero_grad()
@@ -143,7 +152,18 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 logit_scale = model_out["logit_scale"]
                 if args.distill:
                     with torch.no_grad():
-                        dist_model_out = dist_model(images, texts)
+                        if teacher_emb is not None:
+                            # image side is precomputed/frozen (see precompute_teacher_embeddings.py);
+                            # only the text tower still needs to run live, since --text_type random
+                            # picks a different text field each step.
+                            dist_text_out = dist_model(image=None, text=texts)
+                            dist_model_out = {
+                                "image_features": teacher_emb.to(dtype=dist_text_out["text_features"].dtype),
+                                "text_features": dist_text_out["text_features"],
+                                "logit_scale": dist_text_out["logit_scale"],
+                            }
+                        else:
+                            dist_model_out = dist_model(images, texts)
                     model_out.update({f'dist_{k}': v for k, v in dist_model_out.items()})
                 if "continual" in data:
                     model_out["continual_len"] = len(continual_images)

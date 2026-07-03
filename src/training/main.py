@@ -211,7 +211,13 @@ def main(args):
         assert args.accum_freq == 1
         #FIXME: support distillation with coca.
         assert 'coca' not in args.model.lower()
-    
+    if args.teacher_embed_dir is not None:
+        assert args.distill, '--teacher-embed-dir requires --distill-model/--distill-pretrained (the teacher text tower is still run live).'
+        assert args.continual_data is None, (
+            '--teacher-embed-dir does not currently cover continual/LAION-replay samples '
+            '(precomputed embeddings only exist for --train-data); do not combine the two.'
+        )
+
     is_continual = True if args.continual_data else False
 
     if isinstance(args.force_image_size, (tuple, list)) and len(args.force_image_size) == 1:

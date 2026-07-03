@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --nodes=1
 #SBATCH --account=PAS2136
-#SBATCH --gpus-per-node=4
+#SBATCH --gpus-per-node=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=gpu
 #SBATCH --job-name=bioclip-distill
@@ -20,13 +20,14 @@ echo $host_node
 export RDZV_HOST=$host_node
 export RDZV_PORT=29400
 
-srun torchrun --nnodes=1 --nproc_per_node 4 \
+srun torchrun --nnodes=1 --nproc_per_node 2 \
   --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$RDZV_HOST:$RDZV_PORT \
   -m src.training.main \
   --model ViT-B-16-1024 \
   --pretrained 'openai' \
   --distill-model 'hf-hub:imageomics/bioclip-2.5-vith14' \
   --distill-pretrained 'unused' \
+  --teacher-embed-dir '/fs/scratch/PAS2136/bioclip-distillation/10M/teacher-embeddings' \
   --train-data '/fs/scratch/PAS2136/bioclip-distillation/10M/shards/shard-{00000..01001}.tar' \
   --dataset-type 'webdataset' \
   --dataset-resampled \

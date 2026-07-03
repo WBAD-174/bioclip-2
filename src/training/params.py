@@ -471,6 +471,15 @@ def parse_args(args):
         help='Which pre-trained weights to distill from, if any.'
     )
     parser.add_argument(
+        "--teacher-embed-dir",
+        default=None,
+        help='Directory of precomputed frozen teacher image embeddings (from '
+        'src/training/precompute_teacher_embeddings.py), one shard per --train-data shard with '
+        'the same basename. If set, training reads the teacher image embedding for each sample '
+        'off disk instead of running the teacher image tower live; the teacher text tower (and '
+        '--distill-model / --distill-pretrained) is still required and run live each step.'
+    )
+    parser.add_argument(
         "--use-bnb-linear",
         default=None,
         help='Replace the network linear layers from the bitsandbytes library. '
