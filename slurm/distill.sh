@@ -12,6 +12,9 @@ module load miniconda3/24.1.2-py310
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate bioclip
 
+# -m src.xxx needs the repo root as CWD, regardless of where sbatch was invoked from.
+cd "$(dirname "$(readlink -f "$0")")/.."
+
 echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
 echo "Nodelist:= " $SLURM_JOB_NODELIST
 echo "Number of nodes:= " $SLURM_JOB_NUM_NODES
