@@ -8,7 +8,10 @@
 #SBATCH --time=240:00:00
 #SBATCH --mem=800GB
 
-##### Number of total processes 
+module load miniconda3/24.1.2-py310
+source activate bioclip
+
+##### Number of total processes
 echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
 echo "Nodelist:= " $SLURM_JOB_NODELIST
 echo "Number of nodes:= " $SLURM_JOB_NUM_NODES

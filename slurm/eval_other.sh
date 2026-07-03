@@ -8,6 +8,9 @@
 #SBATCH --time=8:00:00
 #SBATCH --mem=400GB
 
+module load miniconda3/24.1.2-py310
+source activate bioclip
+
 export CUDA_VISIBLE_DEVICES=0
 
 LOG_FILEPATH="../storage/logs"
