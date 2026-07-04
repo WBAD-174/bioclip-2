@@ -35,7 +35,7 @@ srun torchrun --nnodes=1 --nproc_per_node 4 \
   -m src.training.precompute_teacher_embeddings \
   --teacher-model 'hf-hub:imageomics/bioclip-2.5-vith14' \
   --input-data '/fs/scratch/PAS2136/bioclip-distillation/10M/shards/shard-{00000..01001}.tar' \
-  --output-dir '/fs/scratch/PAS2136/bioclip-distillation/10M/teacher-embeddings' \
+  --output-dir '/fs/scratch/PAS2136/chenxujiang/bioclip-teacher-embeddings' \
   --batch-size 512 \
   --workers 2 \
   --precision amp \

@@ -35,7 +35,7 @@ srun torchrun --nnodes=1 --nproc_per_node 2 \
   --pretrained '/fs/scratch/PAS2136/bioclip-distillation/10M/student_warm_start.pt' \
   --distill-model 'hf-hub:imageomics/bioclip-2.5-vith14' \
   --distill-pretrained 'unused' \
-  --teacher-embed-dir '/fs/scratch/PAS2136/bioclip-distillation/10M/teacher-embeddings' \
+  --teacher-embed-dir '/fs/scratch/PAS2136/chenxujiang/bioclip-teacher-embeddings' \
   --train-data '/fs/scratch/PAS2136/bioclip-distillation/10M/shards/shard-{00000..01001}.tar' \
   --dataset-type 'webdataset' \
   --dataset-resampled \
