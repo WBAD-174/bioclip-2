@@ -12,8 +12,9 @@ module load miniconda3/24.1.2-py310
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate bioclip
 
-# -m src.xxx needs the repo root as CWD, regardless of where sbatch was invoked from.
-cd "$(dirname "$(readlink -f "$0")")/.."
+# -m src.xxx needs the repo root as CWD. Not using $0-based resolution: SLURM may run
+# a spooled copy of this script, so $0 does not reliably point back into the repo.
+cd /users/PAS2136/chenxujiang/bioclip-2/bioclip-2
 
 echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
 echo "Nodelist:= " $SLURM_JOB_NODELIST
