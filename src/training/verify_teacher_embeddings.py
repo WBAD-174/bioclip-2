@@ -98,6 +98,16 @@ def check_key_alignment(input_shard_path, embed_shard_path):
     return ok
 
 
+def extract_taxon(sci_text):
+    # sci.txt is a caption template like "a photo of Chloris chloris.", not a bare taxon name --
+    # strip the template wrapper so we're left with just the (genus [+ species]) name.
+    text = sci_text.strip()
+    prefix = "a photo of "
+    if text.lower().startswith(prefix):
+        text = text[len(prefix):]
+    return text.rstrip(".").strip()
+
+
 def semantic_check(shard_pairs, max_pairs=20000, seed=0):
     # TreeOfLife shards are built from a taxonomically-sorted catalog, so a single shard is
     # typically dominated by (or entirely) one species -- pool several shards together so the
@@ -111,8 +121,7 @@ def semantic_check(shard_pairs, max_pairs=20000, seed=0):
         for sample in wds.WebDataset(input_path).decode():
             key = sample["__key__"]
             if key in shard_embeds and "sci.txt" in sample:
-                # first two words of the scientific name ~= genus + species
-                species[key] = " ".join(sample["sci.txt"].split()[:2])
+                species[key] = extract_taxon(sample["sci.txt"])
         embeds.update(shard_embeds)
 
     keys = [k for k in species if k in embeds]
