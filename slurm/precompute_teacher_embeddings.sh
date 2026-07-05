@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #SBATCH --nodes=1
 #SBATCH --account=PAS2136
-#SBATCH --gpus-per-node=4
+#SBATCH --gpus-per-node=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=gpu
 #SBATCH --job-name=bioclip-teacher-embed
-#SBATCH --time=48:00:00
+#SBATCH --time=12:00:00
 #SBATCH --mem=200GB
 
 module load miniconda3/24.1.2-py310
@@ -30,7 +30,7 @@ export RDZV_PORT=29400
 
 # Embarrassingly parallel across ranks (whole shards per rank, no gradient sync needed), so this
 # scales cleanly by bumping --gpus-per-node / --nodes if it's too slow on one node.
-srun torchrun --nnodes=1 --nproc_per_node 4 \
+srun torchrun --nnodes=1 --nproc_per_node 2 \
   --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$RDZV_HOST:$RDZV_PORT \
   -m src.training.precompute_teacher_embeddings \
   --teacher-model 'hf-hub:imageomics/bioclip-2.5-vith14' \

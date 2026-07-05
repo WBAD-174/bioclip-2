@@ -98,21 +98,28 @@ def check_key_alignment(input_shard_path, embed_shard_path):
     return ok
 
 
-def semantic_check(input_shard_path, embed_shard_path, max_pairs=20000, seed=0):
+def semantic_check(shard_pairs, max_pairs=20000, seed=0):
+    # TreeOfLife shards are built from a taxonomically-sorted catalog, so a single shard is
+    # typically dominated by (or entirely) one species -- pool several shards together so the
+    # random pairs actually have a chance of landing on two different species.
     embeds = {}
-    for sample in wds.WebDataset(embed_shard_path).decode():
-        embeds[sample["__key__"]] = sample["teacher_emb.npy"].astype("float32")
-
     species = {}
-    for sample in wds.WebDataset(input_shard_path).decode():
-        key = sample["__key__"]
-        if key in embeds and "sci.txt" in sample:
-            # first two words of the scientific name ~= genus + species
-            species[key] = " ".join(sample["sci.txt"].split()[:2])
+    for input_path, embed_path in shard_pairs:
+        shard_embeds = {}
+        for sample in wds.WebDataset(embed_path).decode():
+            shard_embeds[sample["__key__"]] = sample["teacher_emb.npy"].astype("float32")
+        for sample in wds.WebDataset(input_path).decode():
+            key = sample["__key__"]
+            if key in shard_embeds and "sci.txt" in sample:
+                # first two words of the scientific name ~= genus + species
+                species[key] = " ".join(sample["sci.txt"].split()[:2])
+        embeds.update(shard_embeds)
 
     keys = [k for k in species if k in embeds]
-    if len(keys) < 20:
-        print(f"[semantic] {os.path.basename(embed_shard_path)}: too few labeled samples ({len(keys)}) to check, skipping.")
+    n_species = len(set(species[k] for k in keys))
+    if len(keys) < 20 or n_species < 2:
+        print(f"[semantic] pooled {len(shard_pairs)} shard(s): {len(keys)} labeled samples across "
+              f"{n_species} distinct species -- too few to check, skipping.")
         return
 
     rng = random.Random(seed)
@@ -124,8 +131,11 @@ def semantic_check(input_shard_path, embed_shard_path, max_pairs=20000, seed=0):
 
     same_mean = np.mean(same_sims) if same_sims else float("nan")
     diff_mean = np.mean(diff_sims) if diff_sims else float("nan")
-    verdict = "OK (same-species more similar, as expected)" if same_mean > diff_mean else "SUSPICIOUS (same-species not more similar than different-species)"
-    print(f"[semantic] {os.path.basename(embed_shard_path)}: same-species pairs n={len(same_sims)} mean_cos={same_mean:.4f}, "
+    verdict = ("OK (same-species more similar, as expected)"
+               if same_sims and diff_sims and same_mean > diff_mean
+               else "SUSPICIOUS (same-species not more similar than different-species)")
+    print(f"[semantic] pooled {len(shard_pairs)} shard(s), {n_species} distinct species: "
+          f"same-species pairs n={len(same_sims)} mean_cos={same_mean:.4f}, "
           f"different-species pairs n={len(diff_sims)} mean_cos={diff_mean:.4f} -> {verdict}")
 
 
@@ -149,8 +159,10 @@ def main():
         embed_path = os.path.join(args.embed_dir, os.path.basename(input_path))
         check_format(embed_path)
         check_key_alignment(input_path, embed_path)
-        if args.semantic_check:
-            semantic_check(input_path, embed_path, seed=args.seed)
+
+    if args.semantic_check:
+        shard_pairs = [(p, os.path.join(args.embed_dir, os.path.basename(p))) for p in sample]
+        semantic_check(shard_pairs, seed=args.seed)
 
 
 if __name__ == "__main__":
