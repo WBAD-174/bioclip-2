@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-#SBATCH --nodes=2
+#SBATCH --nodes=4
 #SBATCH --account=PAS2136
-#SBATCH --gpus-per-node=2
+#SBATCH --gpus-per-node=8
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=gpu
 #SBATCH --job-name=bioclip-distill
 #SBATCH --time=48:00:00
-#SBATCH --mem=200GB
+#SBATCH --mem=800GB
 
 module load miniconda3/24.1.2-py310
 source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -28,7 +28,7 @@ echo $host_node
 export RDZV_HOST=$host_node
 export RDZV_PORT=29400
 
-srun torchrun --nnodes=2 --nproc_per_node 2 \
+srun torchrun --nnodes=4 --nproc_per_node 8 \
   --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$RDZV_HOST:$RDZV_PORT \
   -m src.training.main \
   --model ViT-B-16-1024 \
@@ -36,6 +36,7 @@ srun torchrun --nnodes=2 --nproc_per_node 2 \
   --distill-model 'hf-hub:imageomics/bioclip-2.5-vith14' \
   --distill-pretrained 'unused' \
   --teacher-embed-dir '/fs/scratch/PAS2136/chenxujiang/bioclip-teacher-embeddings' \
+  --resume '/fs/scratch/PAS2136/chenxujiang/bioclip-distill-logs/2026_07_05-03_46_53-model_ViT-B-16-1024-lr_0.0001-b_256-j_8-p_amp/checkpoints/epoch_2.pt' \
   --train-data '/fs/scratch/PAS2136/bioclip-distillation/10M/shards/shard-{00000..01001}.tar' \
   --train-num-samples 10000000 \
   --dataset-type 'webdataset' \
