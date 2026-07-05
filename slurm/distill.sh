@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --nodes=1
+#SBATCH --nodes=2
 #SBATCH --account=PAS2136
 #SBATCH --gpus-per-node=2
 #SBATCH --ntasks-per-node=1
@@ -28,11 +28,11 @@ echo $host_node
 export RDZV_HOST=$host_node
 export RDZV_PORT=29400
 
-srun torchrun --nnodes=1 --nproc_per_node 2 \
+srun torchrun --nnodes=2 --nproc_per_node 2 \
   --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$RDZV_HOST:$RDZV_PORT \
   -m src.training.main \
   --model ViT-B-16-1024 \
-  --pretrained '/fs/scratch/PAS2136/bioclip-distillation/10M/student_warm_start.pt' \
+  --pretrained '/fs/scratch/PAS2136/chenxujiang/student_warm_start.pt' \
   --distill-model 'hf-hub:imageomics/bioclip-2.5-vith14' \
   --distill-pretrained 'unused' \
   --teacher-embed-dir '/fs/scratch/PAS2136/chenxujiang/bioclip-teacher-embeddings' \
