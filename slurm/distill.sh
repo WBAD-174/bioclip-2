@@ -52,5 +52,5 @@ srun torchrun --nnodes=2 --nproc_per_node 2 \
   --local-loss \
   --gather-with-grad \
   --grad-checkpointing \
-  --logs-dir './logs' \
+  --logs-dir '/fs/scratch/PAS2136/chenxujiang/bioclip-distill-logs' \
   --precision amp \
