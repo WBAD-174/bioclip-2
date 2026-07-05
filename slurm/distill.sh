@@ -37,6 +37,7 @@ srun torchrun --nnodes=2 --nproc_per_node 2 \
   --distill-pretrained 'unused' \
   --teacher-embed-dir '/fs/scratch/PAS2136/chenxujiang/bioclip-teacher-embeddings' \
   --train-data '/fs/scratch/PAS2136/bioclip-distillation/10M/shards/shard-{00000..01001}.tar' \
+  --train-num-samples 10000000 \
   --dataset-type 'webdataset' \
   --dataset-resampled \
   --save-frequency 1 \
