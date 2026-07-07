@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-#SBATCH --nodes=4
+#SBATCH --nodes=2
 #SBATCH --account=PAS2136
-#SBATCH --gpus-per-node=8
+#SBATCH --gpus-per-node=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=gpu
 #SBATCH --job-name=bioclip-distill
 #SBATCH --time=48:00:00
-#SBATCH --mem=800GB
+#SBATCH --mem=200GB
 
 module load miniconda3/24.1.2-py310
 source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -28,7 +28,7 @@ echo $host_node
 export RDZV_HOST=$host_node
 export RDZV_PORT=29400
 
-srun torchrun --nnodes=4 --nproc_per_node 8 \
+srun torchrun --nnodes=2 --nproc_per_node 2 \
   --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$RDZV_HOST:$RDZV_PORT \
   -m src.training.main \
   --model ViT-B-16-1024 \
