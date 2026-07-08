@@ -76,6 +76,42 @@ for i in "${!MODEL_NAMES[@]}"; do
       --kshot_list 1 5
   done
 
+  META_ALBUM_TEXT_TYPE="asis"
+  META_ALBUM_DATA_ROOTS=(
+    "[test-set-dir]/meta-album/set0/PLK_Mini/val"
+    "[test-set-dir]/meta-album/set2/INS_Mini/val"
+    "[test-set-dir]/meta-album/set1/INS_2_Mini/val"
+    "[test-set-dir]/meta-album/set1/PLT_NET_Mini/val"
+    "[test-set-dir]/meta-album/set2/FNG_Mini/val"
+    "[test-set-dir]/meta-album/set0/PLT_VIL_Mini/val"
+    "[test-set-dir]/meta-album/set1/MED_LF_Mini/val"
+    "[test-set-dir]/nabird/images/"
+  )
+  META_ALBUM_LABEL_FILES=(
+    "[test-set-dir]/meta-album/PLK_Mini/val/metadata.csv"
+    "[test-set-dir]/meta-album/INS_Mini/metadata.csv"
+    "[test-set-dir]/meta-album/INS_2_Mini/metadata.csv"
+    "[test-set-dir]/meta-album/PLT_NET_Mini/metadata.csv"
+    "[test-set-dir]/meta-album/FNG_Mini/metadata.csv"
+    "[test-set-dir]/meta-album/PLT_VIL_Mini/val/metadata.csv"
+    "[test-set-dir]/meta-album/MED_LF_Mini/metadata.csv"
+    "[test-set-dir]/nabird/metadata.csv"
+  )
+  for j in "${!META_ALBUM_DATA_ROOTS[@]}"; do
+    python -m src.evaluation.classification \
+      --model "$MODEL_TYPE" \
+      --batch-size 256 \
+      --data_root "${META_ALBUM_DATA_ROOTS[$j]}" \
+      --pretrained "$PRETRAINED" \
+      --label_filename "${META_ALBUM_LABEL_FILES[$j]}" \
+      --logs "$LOG_FILEPATH/$NAME" \
+      --text_type $META_ALBUM_TEXT_TYPE \
+      --task_type all \
+      --classification-tasks zero_shot few_shot \
+      --nfold 5 \
+      --kshot_list 1 5
+  done
+
   DATA_ROOT="[test-set-dir]/rare-species/"
   LABEL_FILE="[test-set-dir]/rare-species/metadata.csv"
   python -m src.evaluation.classification \
