@@ -27,20 +27,45 @@ export CUDA_VISIBLE_DEVICES=0
 # Loop is (name, model, pretrained) so it's a two-line change to add a third model
 # later (e.g. a feature-alignment student for hypothesis 2).
 #
-# Prerequisite one-time data prep (run before this script, not part of it):
-#   python -m src.evaluation.build_nabirds_metadata \
-#     --nabirds-root /fs/ess/PAS2136/hierarchical-vision/datasets/nabird/nabirds \
-#     --output /fs/scratch/PAS2136/chenxujiang/nabirds_metadata.csv
-#   for SUBSET in PLK_Mini:set0 INS_Mini:set2 INS_2_Mini:set1 PLT_NET_Mini:set1 \
-#                 FNG_Mini:set2 PLT_VIL_Mini:set0 MED_LF_Mini:set1; do
-#     NAME=${SUBSET%%:*}; SET=${SUBSET##*:}
-#     python -m src.evaluation.build_meta_album_metadata \
-#       --labels-csv "/fs/ess/PAS2136/meta-album/$SET/$NAME/labels.csv" \
-#       --split-dir "/fs/ess/PAS2136/meta-album/$SET/$NAME/val" \
-#       --output "/fs/scratch/PAS2136/chenxujiang/meta-album-metadata/$NAME.csv"
-#   done
-# CameraTrap (IDLE-OO-Camera-Traps) and Rare Species still need to be downloaded from
-# HF and that section of this script updated once their on-disk layout is known.
+# Prerequisite one-time data prep (run before this script, not part of it; all done as
+# of 2026-07-07, kept here for reproducibility / re-running from scratch):
+#
+#   NABirds:
+#     python -m src.evaluation.build_nabirds_metadata \
+#       --nabirds-root /fs/ess/PAS2136/hierarchical-vision/datasets/nabird/nabirds \
+#       --output /fs/scratch/PAS2136/chenxujiang/nabirds_metadata.csv
+#
+#   Meta-Album (7 subsets; INS_Mini/FNG_Mini need the Unicode-normalization fallback in
+#   build_meta_album_metadata.py -- their labels.csv CATEGORY strings and val/ folder
+#   names use different Unicode normalization forms for accented characters):
+#     for SUBSET in PLK_Mini:set0 INS_Mini:set2 INS_2_Mini:set1 PLT_NET_Mini:set1 \
+#                   FNG_Mini:set2 PLT_VIL_Mini:set0 MED_LF_Mini:set1; do
+#       NAME=${SUBSET%%:*}; SET=${SUBSET##*:}
+#       python -m src.evaluation.build_meta_album_metadata \
+#         --labels-csv "/fs/ess/PAS2136/meta-album/$SET/$NAME/labels.csv" \
+#         --split-dir "/fs/ess/PAS2136/meta-album/$SET/$NAME/val" \
+#         --output "/fs/scratch/PAS2136/chenxujiang/meta-album-metadata/$NAME.csv"
+#     done
+#
+#   Rare Species (not on OSC -- downloaded from HF, parquet-backed, needs exporting to
+#   real files before this repo's eval code can read it):
+#     huggingface-cli download imageomics/rare-species --repo-type dataset \
+#       --local-dir /fs/scratch/PAS2136/chenxujiang/rare-species
+#     cd /fs/scratch/PAS2136/chenxujiang/rare-species
+#     pip install polars datasets  # deps for the export script below, not in requirements.txt
+#     python scripts/export_rare_species.py --dataset-path /fs/scratch/PAS2136/chenxujiang/rare-species-export
+#     cd /users/PAS2136/chenxujiang/bioclip-2/bioclip-2
+#     python -m src.evaluation.build_rare_species_metadata \
+#       --input /fs/scratch/PAS2136/chenxujiang/rare-species/metadata.csv \
+#       --output /fs/scratch/PAS2136/chenxujiang/rare-species-export/metadata.csv
+#
+#   CameraTrap (IDLE-OO-Camera-Traps, not on OSC -- downloaded from HF; needs a login
+#   token, anonymous downloads of this dataset hit HF's rate limit):
+#     huggingface-cli login   # or export HF_TOKEN=...
+#     huggingface-cli download imageomics/IDLE-OO-Camera-Traps --repo-type dataset \
+#       --local-dir /fs/scratch/PAS2136/chenxujiang/IDLE-OO-Camera-Traps --max-workers 1
+#     # no conversion needed -- its own CSV columns already match what this repo's
+#     # eval code expects (kingdom/phylum/cls/order/family/genus/species/common_name/filepath)
 MODEL_NAMES=("teacher" "student")
 MODEL_TYPES=(
   "hf-hub:imageomics/bioclip-2.5-vith14"
@@ -83,7 +108,7 @@ for i in "${!MODEL_NAMES[@]}"; do
       --pretrained "$PRETRAINED" \
       --label_filename "${LABEL_FILES[$j]}" \
       --logs "$LOG_FILEPATH/$NAME" \
-      --text_type $TEXT_TYPE \
+      --text_type "$TEXT_TYPE" \
       --task_type all \
       --classification-tasks zero_shot few_shot \
       --nfold 5 \
@@ -121,7 +146,7 @@ for i in "${!MODEL_NAMES[@]}"; do
       --pretrained "$PRETRAINED" \
       --label_filename "${META_ALBUM_LABEL_FILES[$j]}" \
       --logs "$LOG_FILEPATH/$NAME" \
-      --text_type $META_ALBUM_TEXT_TYPE \
+      --text_type "$META_ALBUM_TEXT_TYPE" \
       --task_type all \
       --classification-tasks zero_shot few_shot \
       --nfold 5 \
