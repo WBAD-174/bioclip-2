@@ -61,26 +61,25 @@ for i in "${!MODEL_NAMES[@]}"; do
   echo "==== $NAME : $MODEL_TYPE / $PRETRAINED ===="
 
   # --- Option 1: inter-species classification (same benchmarks as slurm/eval.sh) ---
+  # IDLE-OO-Camera-Traps' own 'filepath' column already includes the subset name
+  # (e.g. "ENA24/<uuid>.png"), so unlike the old eval.sh assumption, all 5 subsets
+  # share ONE data_root (data/test/) rather than each getting its own subset-specific
+  # data_root -- see project memory / conversation notes for how this was confirmed.
   TEXT_TYPE="taxon_com"
-  DATA_ROOTS=(
-    "[test-set-dir]/CameraTrap/images/desert-lion/"
-    "[test-set-dir]/CameraTrap/images/ENA24/"
-    "[test-set-dir]/CameraTrap/images/island/"
-    "[test-set-dir]/CameraTrap/images/orinoquia/"
-    "[test-set-dir]/CameraTrap/images/ohio-small-animals/"
-  )
+  CAMERA_TRAP_ROOT="/fs/scratch/PAS2136/chenxujiang/IDLE-OO-Camera-Traps"
+  DATA_ROOT="$CAMERA_TRAP_ROOT/data/test"
   LABEL_FILES=(
-    "[test-set-dir]/CameraTrap/desert-lion-balanced.csv"
-    "[test-set-dir]/CameraTrap/ENA24-balanced.csv"
-    "[test-set-dir]/CameraTrap/island-balanced.csv"
-    "[test-set-dir]/CameraTrap/orinoquia-balanced.csv"
-    "[test-set-dir]/CameraTrap/ohio-small-animals-balanced.csv"
+    "$CAMERA_TRAP_ROOT/desert-lion-balanced.csv"
+    "$CAMERA_TRAP_ROOT/ENA24-balanced.csv"
+    "$CAMERA_TRAP_ROOT/island-balanced.csv"
+    "$CAMERA_TRAP_ROOT/orinoquia-balanced.csv"
+    "$CAMERA_TRAP_ROOT/ohio-small-animals-balanced.csv"
   )
-  for j in "${!DATA_ROOTS[@]}"; do
+  for j in "${!LABEL_FILES[@]}"; do
     python -m src.evaluation.classification \
       --model "$MODEL_TYPE" \
       --batch-size 256 \
-      --data_root "${DATA_ROOTS[$j]}" \
+      --data_root "$DATA_ROOT" \
       --pretrained "$PRETRAINED" \
       --label_filename "${LABEL_FILES[$j]}" \
       --logs "$LOG_FILEPATH/$NAME" \
@@ -129,8 +128,8 @@ for i in "${!MODEL_NAMES[@]}"; do
       --kshot_list 1 5
   done
 
-  DATA_ROOT="[test-set-dir]/rare-species/"
-  LABEL_FILE="[test-set-dir]/rare-species/metadata.csv"
+  DATA_ROOT="/fs/scratch/PAS2136/chenxujiang/rare-species-export"
+  LABEL_FILE="/fs/scratch/PAS2136/chenxujiang/rare-species-export/metadata.csv"
   python -m src.evaluation.classification \
     --model "$MODEL_TYPE" \
     --batch-size 256 \
