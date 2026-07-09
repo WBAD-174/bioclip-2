@@ -17,6 +17,7 @@ Usage:
         --output /fs/scratch/PAS2136/chenxujiang/rare-species-export/metadata.csv
 """
 import argparse
+import os
 
 import pandas as pd
 
@@ -35,6 +36,7 @@ def main():
         raise ValueError(f"{args.input} is missing expected column(s) {missing} (found {list(df.columns)}).")
 
     df = df.rename(columns=RENAME)
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     df.to_csv(args.output)  # default index=True writes the leading unnamed index column
 
     print(f"Wrote {len(df)} rows to {args.output} (renamed {RENAME})")
