@@ -169,13 +169,19 @@ for i in "${!MODEL_NAMES[@]}"; do
     --kshot_list 1 5
 
   # --- Option 3: intra-species geometry (rare-species has full taxonomic columns) ---
+  # --text_type must be something DatasetFromFile can actually compute from this CSV's
+  # columns (kingdom/phylum/cls/order/family/genus/species/common_name) -- 'asis' needs
+  # a literal pre-existing 'class' column, which this CSV doesn't have (it has 'cls',
+  # matching the Taxon dataclass field name). geometry_eval.py itself never reads the
+  # resulting 'class' text value -- it reads the taxonomic columns directly -- so any
+  # working --text_type is fine; 'taxon_com' matches the classification.py call above.
   python -m src.evaluation.geometry_eval \
     --model "$MODEL_TYPE" \
     --batch-size 256 \
     --data_root "$DATA_ROOT" \
     --pretrained "$PRETRAINED" \
     --label_filename metadata.csv \
-    --text_type asis \
+    --text_type taxon_com \
     --workers 8 \
     --logs "$LOG_FILEPATH/$NAME" \
     --orthogonality-components 10
