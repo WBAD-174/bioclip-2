@@ -125,7 +125,13 @@ def to_classes(data,text_type):
     if text_type == 'asis':
         return data['class']
 
-    data_view = data.drop(columns=list(set(data.keys()) - set(Taxon.__dict__.keys())))
+    # Only keep columns that are actual Taxon dataclass fields (valid Taxon(**kwargs)
+    # arguments). Taxon.__dict__ would also match its @property names (e.g.
+    # 'scientific_name'), which aren't constructor arguments -- a CSV with a column
+    # that happens to share a name with one of those properties (as IDLE-OO-Camera-
+    # Traps' 'scientific_name' column does) would otherwise get passed through and
+    # crash with "unexpected keyword argument".
+    data_view = data.drop(columns=list(set(data.keys()) - set(Taxon.__dataclass_fields__.keys())))
 
     if text_type == 'sci':
         return data_view.apply(lambda x: Taxon(**x.to_dict()).scientific_name, axis=1).values.tolist()
