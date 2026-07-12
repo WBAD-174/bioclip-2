@@ -60,11 +60,23 @@ def parse_results(out_log_path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--logs-root", required=True)
+    ap.add_argument(
+        "--baseline", default="teacher",
+        help="model name to compute diff/rel%% against (must match a subdir name under --logs-root)",
+    )
     ap.add_argument("--out", default=None, help="optional: also write all-runs CSV here")
     args = ap.parse_args()
 
+    # Model names are just subdirectories of logs-root (e.g. "teacher", "student",
+    # "contrastive_only") -- not hardcoded, so adding a new model to eval_hypothesis1.sh
+    # (a new MODEL_NAMES entry / new mkdir under logs-root) is picked up automatically.
+    model_names = sorted(
+        d for d in os.listdir(args.logs_root)
+        if os.path.isdir(os.path.join(args.logs_root, d))
+    )
+
     rows = []
-    for model_name in ("teacher", "student"):
+    for model_name in model_names:
         model_dir = os.path.join(args.logs_root, model_name)
         if not os.path.isdir(model_dir):
             continue
@@ -107,30 +119,46 @@ def main():
         if key not in latest_run or r["run_dir"] > latest_run[key]:
             latest_run[key] = r["run_dir"]
 
-    # --- pivot: (dataset, metric) -> {teacher: value, student: value} ---
+    # --- pivot: (dataset, metric) -> {model_name: value}, one column per discovered model ---
     pivot = {}
     for r in rows:
         if latest_run[(r["model"], r["dataset"])] != r["run_dir"]:
             continue
         pivot.setdefault((r["dataset"], r["metric"]), {})[r["model"]] = r["value_pct"]
 
-    header = f"{'dataset':<22} {'metric':<20} {'teacher':>9} {'student':>9} {'diff':>8} {'rel%':>8}"
+    # non-baseline models get a "vs <baseline> diff/rel%" pair of columns each
+    other_models = [m for m in model_names if m != args.baseline]
+
+    col_widths = {"dataset": 22, "metric": 20, "model": 9, "diff": 8, "rel": 8}
+    header_parts = [f"{'dataset':<{col_widths['dataset']}}", f"{'metric':<{col_widths['metric']}}"]
+    for m in model_names:
+        header_parts.append(f"{m:>{col_widths['model']}}")
+    for m in other_models:
+        header_parts.append(f"{'diff(' + m + ')':>{col_widths['diff']}}")
+        header_parts.append(f"{'rel%(' + m + ')':>{col_widths['rel']}}")
+    header = " ".join(header_parts)
     print(header)
     print("-" * len(header))
+
     for (dataset, metric) in sorted(pivot):
         vals = pivot[(dataset, metric)]
-        t = vals.get("teacher")
-        s = vals.get("student")
-        if t is None or s is None:
-            diff_str = rel_str = "n/a"
-        else:
-            diff = s - t
-            rel = (diff / t * 100) if t else float("nan")
-            diff_str = f"{diff:+.2f}"
-            rel_str = f"{rel:+.1f}%"
-        t_str = f"{t:.2f}" if t is not None else "n/a"
-        s_str = f"{s:.2f}" if s is not None else "n/a"
-        print(f"{dataset:<22} {metric:<20} {t_str:>9} {s_str:>9} {diff_str:>8} {rel_str:>8}")
+        row_parts = [f"{dataset:<{col_widths['dataset']}}", f"{metric:<{col_widths['metric']}}"]
+        for m in model_names:
+            v = vals.get(m)
+            row_parts.append(f"{(f'{v:.2f}' if v is not None else 'n/a'):>{col_widths['model']}}")
+        baseline_v = vals.get(args.baseline)
+        for m in other_models:
+            v = vals.get(m)
+            if v is None or baseline_v is None:
+                diff_str = rel_str = "n/a"
+            else:
+                diff = v - baseline_v
+                rel = (diff / baseline_v * 100) if baseline_v else float("nan")
+                diff_str = f"{diff:+.2f}"
+                rel_str = f"{rel:+.1f}%"
+            row_parts.append(f"{diff_str:>{col_widths['diff']}}")
+            row_parts.append(f"{rel_str:>{col_widths['rel']}}")
+        print(" ".join(row_parts))
 
 
 if __name__ == "__main__":
