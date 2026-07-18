@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=gpu
 #SBATCH --job-name=bioclip-exp2-distill
-#SBATCH --time=48:00:00
+#SBATCH --time=96:00:00
 #SBATCH --mem=200GB
 
 module load miniconda3/24.1.2-py310
@@ -41,6 +41,7 @@ srun torchrun --nnodes=2 --nproc_per_node 2 \
   --distill-model 'hf-hub:imageomics/bioclip-2.5-vith14' \
   --distill-pretrained 'unused' \
   --teacher-embed-dir '/fs/scratch/PAS2136/chenxujiang/bioclip-teacher-embeddings-evobio10m' \
+  --resume '/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-logs/exp2-distill-evobio10m/checkpoints/epoch_12.pt' \
   --train-data '/fs/ess/PAS2136/open_clip/data/evobio10m-v3.3/224x224/train/shard-{000000..000159}.tar' \
   --val-data '/fs/ess/PAS2136/open_clip/data/evobio10m-v3.3/224x224/val/shard-{000000..000064}.tar' \
   --dataset-type 'webdataset' \
