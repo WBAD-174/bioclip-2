@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #SBATCH --nodes=2
 #SBATCH --account=PAS2136
-#SBATCH --gpus-per-node=2
+#SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=gpu
 #SBATCH --job-name=bioclip-exp1-no-distill
 #SBATCH --time=96:00:00
-#SBATCH --mem=200GB
+#SBATCH --mem=800GB
 
 module load miniconda3/24.1.2-py310
 source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -33,7 +33,7 @@ export RDZV_PORT=29400
 # replay. Exp2 (slurm/exp2_distill.sh) is this exact same config with only the
 # --distill-* / --teacher-embed-dir lines added -- diff the two files to confirm
 # nothing else differs (seed, lr, batch size, epochs, augmentation all identical).
-srun torchrun --nnodes=2 --nproc_per_node 2 \
+srun torchrun --nnodes=2 --nproc_per_node 4 \
   --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$RDZV_HOST:$RDZV_PORT \
   -m src.training.main \
   --name 'exp1-no-distill-evobio10m' \
@@ -46,7 +46,7 @@ srun torchrun --nnodes=2 --nproc_per_node 2 \
   --dataset-resampled \
   --save-frequency 1 \
   --warmup 1000 \
-  --batch-size 256 \
+  --batch-size 4096 \
   --accum-freq 1 \
   --epochs 30 \
   --workers 8 \
@@ -58,4 +58,5 @@ srun torchrun --nnodes=2 --nproc_per_node 2 \
   --gather-with-grad \
   --grad-checkpointing \
   --logs-dir '/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-logs' \
-  --precision amp \
+  --precision pure_bf16 \
+  --torchcompile \

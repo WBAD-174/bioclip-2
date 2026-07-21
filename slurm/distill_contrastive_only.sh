@@ -8,28 +8,6 @@
 #SBATCH --time=48:00:00
 #SBATCH --mem=200GB
 
-# Control run for the Hypothesis-1 disentangling question (see
-# Hypothesis1_Geometry_Findings.md, "What's not yet checked" -> "Disentangle
-# data-scale/coverage from the distillation objective"). Identical to distill.sh
-# (same --model, same warm start, same 10M shards, same 30 epochs, same seed) with the
-# --distill-model/--distill-pretrained/--teacher-embed-dir args removed, so
-# args.distill = args.distill_model is not None and args.distill_pretrained is not None
-# (src/training/main.py:208) evaluates False and training falls back to plain
-# contrastive loss against the ground-truth taxonomic text labels only -- no teacher
-# supervision at all. This isolates: does training on the same 10M sample without any
-# distillation signal already show the same inter-species accuracy drop / intra-species
-# orthogonality preservation as the logit-KD student? If yes, that's a data-scale
-# effect, not a distillation-objective effect.
-#
-# Deliberately NOT passing --resume (unlike distill.sh, which resumes a specific
-# mid-training KD checkpoint) -- this is a fresh 30-epoch run from the same warm start.
-#
-# After this finishes, add a third entry to slurm/eval_hypothesis1.sh's
-# MODEL_NAMES/MODEL_TYPES/PRETRAINED_PATHS arrays (e.g. name "contrastive_only", type
-# "ViT-B-16-1024", pretrained_path pointing at this run's final epoch checkpoint under
-# --logs-dir below), then re-run it and
-# src/evaluation/summarize_hypothesis1_classification.py (already generalized to any
-# number of model subdirectories under --logs-root).
 
 module load miniconda3/24.1.2-py310
 source "$(conda info --base)/etc/profile.d/conda.sh"

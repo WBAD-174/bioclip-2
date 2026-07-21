@@ -18,13 +18,11 @@ export CUDA_VISIBLE_DEVICES=0
 
 # Controlled ablation eval: Exp1 (no distillation, OpenAI-CLIP init, plain contrastive
 # on evobio10m-v3.3 TOL-10M) vs Exp2 (identical config + BioCLIP 2.5 distillation).
-# Both compared at epoch 12 -- the highest epoch BOTH runs had actually completed as of
-# 2026-07-14 (Exp1 had reached 15, Exp2 12; neither had finished all 30 -- both got cut
-# off by the 48h wall-time limit). Epoch-matched on purpose: comparing Exp1@15 vs
-# Exp2@12 would confound "distillation helped/hurt" with "trained longer", defeating the
-# point of a single-variable ablation. Both experiments are being --resume'd toward
-# epoch 30 separately; re-run this eval against later matching epochs once more data is
-# in, don't just swap in whichever checkpoint is newest for one side only.
+# Both compared here at epoch 30 -- the full, final checkpoint for both runs (the
+# earlier epoch-12 comparison, in bioclip-ablation-eval/logs, was a matched
+# intermediate check while both were still training under the 48h wall-time limit;
+# keep that directory around for the epoch12-vs-epoch30 trend, don't overwrite it --
+# this run writes to a separate -epoch30 log dir instead).
 #
 # Reuses the same eval harness as slurm/eval_hypothesis1.sh (classification.py =
 # proposal Option 1 inter-species accuracy, geometry_eval.py = Option 3 FDR / intra-
@@ -37,11 +35,11 @@ MODEL_TYPES=(
   "ViT-B-16"
 )
 PRETRAINED_PATHS=(
-  "/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-logs/exp1-no-distill-evobio10m/checkpoints/epoch_12.pt"
-  "/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-logs/exp2-distill-evobio10m/checkpoints/epoch_12.pt"
+  "/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-logs/exp1-no-distill-evobio10m/checkpoints/epoch_30.pt"
+  "/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-logs/exp2-distill-evobio10m/checkpoints/epoch_30.pt"
 )
 
-LOG_FILEPATH="/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-eval/logs"
+LOG_FILEPATH="/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-eval-epoch30/logs"
 
 for i in "${!MODEL_NAMES[@]}"; do
   NAME=${MODEL_NAMES[$i]}
@@ -143,4 +141,4 @@ done
 
 echo "Done. Compare $LOG_FILEPATH/exp1_no_distill/.../geometry_results.json against"
 echo "$LOG_FILEPATH/exp2_distill/.../geometry_results.json, and the classification logs"
-echo "under the same two directories, for the distillation ablation (epoch 12 vs epoch 12)."
+echo "under the same two directories, for the distillation ablation (epoch 30 vs epoch 30)."
