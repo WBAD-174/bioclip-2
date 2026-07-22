@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-#SBATCH --nodes=2
+#SBATCH --nodes=1
 #SBATCH --account=PAS2136
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --partition=gpu
 #SBATCH --job-name=bioclip-exp2-distill
-#SBATCH --time=96:00:00
+#SBATCH --time=48:00:00
 #SBATCH --mem=800GB
 
 module load miniconda3/24.1.2-py310
@@ -22,18 +22,19 @@ echo "Number of nodes:= " $SLURM_JOB_NUM_NODES
 echo "Ntasks per node:= "  $SLURM_NTASKS_PER_NODE
 echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
 
-host_node=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
-echo $host_node
-
-export RDZV_HOST=$host_node
-export RDZV_PORT=29400
+# Single-node now (was 2 nodes) -- see slurm/exp1_no_distill.sh's comment for why
+# (repeated cross-node rendezvous/DDP-init failures on Pitzer and Cardinal, pointing at
+# cross-node network flakiness rather than a code/config bug). Also fixes a real
+# mismatch this file used to have: --gpus-per-node requested 4 GPUs/node from SLURM but
+# --nproc_per_node was only 2, so half the allocated GPUs sat unused -- now
+# --nproc_per_node matches --gpus-per-node (both 4), and matches Exp1's GPU count too
+# (this mismatch was NOT the cause of the crash; it was just wasting GPUs silently).
 
 # Controlled ablation, Exp2: identical to slurm/exp1_no_distill.sh (same init, same
 # data, same seed/lr/batch-size/epochs/augmentation) with ONLY the distillation switch
 # turned on -- these 3 lines (--distill-model / --distill-pretrained /
 # --teacher-embed-dir) are the sole diff from Exp1. Diff the two files to confirm.
-srun torchrun --nnodes=2 --nproc_per_node 2 \
-  --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$RDZV_HOST:$RDZV_PORT \
+srun torchrun --standalone --nnodes=1 --nproc_per_node 4 \
   -m src.training.main \
   --name 'exp2-distill-evobio10m' \
   --model ViT-B-16 \
