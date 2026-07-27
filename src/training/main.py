@@ -100,13 +100,21 @@ def main(args):
         ])
 
     resume_latest = args.resume == 'latest'
+    # An explicit --resume <path> is just as legitimate a reason to reuse an existing
+    # --name/log directory as --resume latest -- both mean "continue this experiment",
+    # not "accidentally reusing a name for a new one". Only guard on the latter: no
+    # --resume at all. (Without this, only the master rank hits the exists-check below
+    # and returns -1 early while the other ranks continue on into DDP init, which then
+    # hangs/crashes waiting on a rank that already exited -- seen as a "Connection reset
+    # by peer" NCCL error, not as this actual root cause.)
+    resuming = args.resume is not None
     log_base_path = os.path.join(args.logs_dir, args.name)
     args.log_path = None
     if is_master(args, local=args.log_local):
         os.makedirs(log_base_path, exist_ok=True)
         log_filename = f'out-{args.rank}' if args.log_local else 'out.log'
         args.log_path = os.path.join(log_base_path, log_filename)
-        if os.path.exists(args.log_path) and not resume_latest:
+        if os.path.exists(args.log_path) and not resuming:
             print(
                 "Error. Experiment already exists. Use --name {} to specify a new experiment."
             )

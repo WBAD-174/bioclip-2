@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --nodes=1
+#SBATCH --nodes=2
 #SBATCH --account=PAS2136
 #SBATCH --gpus-per-node=4
 #SBATCH --ntasks-per-node=1
@@ -22,20 +22,22 @@ echo "Number of nodes:= " $SLURM_JOB_NUM_NODES
 echo "Ntasks per node:= "  $SLURM_NTASKS_PER_NODE
 echo "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
 
-# Single-node now (was 2 nodes) -- repeated cross-node rendezvous/DDP-init failures on
-# both Pitzer and Cardinal (RendezvousConnectionError / verify_params_across_processes
-# crashing on "Connection reset by peer") pointed at cross-node network flakiness, not
-# a code/config bug. All GPUs on one node talk over local NVLink/PCIe instead of the
-# cluster network, which sidesteps that whole failure class. No RDZV_HOST/RDZV_PORT or
-# --rdzv_backend needed for single-node -- torchrun's --standalone mode handles the
-# local-only rendezvous itself.
+# Back to 2 nodes (2026-07-27, user-confirmed working on Cardinal after the earlier
+# single-node-workaround comment below was written) -- needs the multi-node rdzv setup
+# again, --standalone won't work across nodes.
+host_node=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+echo $host_node
+
+export RDZV_HOST=$host_node
+export RDZV_PORT=29400
 
 # Controlled ablation, Exp1: reproduce original BioCLIP -- OpenAI-CLIP-init ViT-B/16,
 # plain contrastive training on TOL-10M (evobio10m-v3.3), NO distillation, NO LAION
 # replay. Exp2 (slurm/exp2_distill.sh) is this exact same config with only the
 # --distill-* / --teacher-embed-dir lines added -- diff the two files to confirm
 # nothing else differs (seed, lr, batch size, epochs, augmentation all identical).
-srun torchrun --standalone --nnodes=1 --nproc_per_node 4 \
+srun torchrun --nnodes=2 --nproc_per_node 4 \
+  --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$RDZV_HOST:$RDZV_PORT \
   -m src.training.main \
   --name 'exp1-no-distill-evobio10m' \
   --model ViT-B-16 \
