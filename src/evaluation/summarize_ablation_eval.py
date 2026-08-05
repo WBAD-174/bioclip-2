@@ -84,6 +84,69 @@ def dataset_name(params):
     return os.path.basename(data_root.rstrip("/")) or "unknown"
 
 
+# Headline-only view for --compact: the 3 classification metrics and geometry metrics
+# actually discussed when summarizing results, dropping top3/top5/std noise.
+COMPACT_CLS_METRICS = ["val-unseen-top1", "few-shot-1-mean", "few-shot-5-mean"]
+COMPACT_GEO_METRICS = [
+    "fdr-species", "fdr-genus", "fdr-family", "fdr-order", "fdr-cls", "fdr-phylum",
+    "intra-species-orthogonality",
+]
+
+
+def _fmt(v, decimals=2):
+    return f"{v:.{decimals}f}" if v is not None else "n/a"
+
+
+def _fmt_delta(v, base, decimals=2):
+    if v is None or base is None:
+        return "n/a"
+    return f"{v - base:+.{decimals}f}"
+
+
+def print_compact_markdown(by_dataset, model_names, baseline):
+    """Print paste-ready markdown tables restricted to the headline metrics."""
+    other_models = [m for m in model_names if m != baseline]
+
+    cls_datasets = sorted(
+        d for d, metrics in by_dataset.items()
+        if any(metric in metrics for metric in COMPACT_CLS_METRICS)
+    )
+    if cls_datasets:
+        header = ["Benchmark", baseline] + other_models
+        print("| " + " | ".join(header) + " |")
+        print("|" + "|".join(["---"] * len(header)) + "|")
+        for dataset in cls_datasets:
+            metrics = by_dataset[dataset]
+            base_vals = [metrics.get(m, {}).get(baseline) for m in COMPACT_CLS_METRICS]
+            row = [dataset, " / ".join(_fmt(v) for v in base_vals)]
+            for other in other_models:
+                other_vals = [metrics.get(m, {}).get(other) for m in COMPACT_CLS_METRICS]
+                row.append(" / ".join(_fmt(v) for v in other_vals))
+            print("| " + " | ".join(row) + " |")
+        print()
+
+    geo_datasets = sorted(
+        d for d, metrics in by_dataset.items()
+        if any(metric in metrics for metric in COMPACT_GEO_METRICS)
+    )
+    for dataset in geo_datasets:
+        metrics = by_dataset[dataset]
+        present = [m for m in COMPACT_GEO_METRICS if m in metrics]
+        if not present:
+            continue
+        print(f"Geometry ({dataset}):")
+        header = ["Metric", baseline] + [f"{m} (delta)" for m in other_models]
+        print("| " + " | ".join(header) + " |")
+        print("|" + "|".join(["---"] * len(header)) + "|")
+        for metric in present:
+            base_v = metrics[metric].get(baseline)
+            row = [metric, _fmt(base_v, 4)]
+            for other in other_models:
+                row.append(_fmt_delta(metrics[metric].get(other), base_v, 4))
+            print("| " + " | ".join(row) + " |")
+        print()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--logs-root", required=True)
@@ -92,6 +155,10 @@ def main():
         help="model name to compute diff/rel%% against (must match a subdir name under --logs-root)",
     )
     ap.add_argument("--out", default=None, help="optional: also write all-runs CSV here")
+    ap.add_argument(
+        "--compact", action="store_true",
+        help="print only the headline metrics (zero-top1/few1/few5 + geometry) as paste-ready markdown, instead of the full metric-by-metric table",
+    )
     args = ap.parse_args()
 
     model_names = sorted(
@@ -153,6 +220,13 @@ def main():
         if latest_run[(r["model"], r["dataset"])] != r["run_dir"]:
             continue
         pivot.setdefault((r["dataset"], r["metric"]), {})[r["model"]] = r["value"]
+
+    if args.compact:
+        by_dataset = {}
+        for (dataset, metric), vals in pivot.items():
+            by_dataset.setdefault(dataset, {})[metric] = vals
+        print_compact_markdown(by_dataset, model_names, args.baseline)
+        return
 
     other_models = [m for m in model_names if m != args.baseline]
 
