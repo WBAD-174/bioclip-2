@@ -112,7 +112,9 @@ def print_compact_markdown(by_dataset, model_names, baseline):
         if any(metric in metrics for metric in COMPACT_CLS_METRICS)
     )
     if cls_datasets:
-        header = ["Benchmark", baseline] + other_models
+        header = ["Benchmark", baseline]
+        for other in other_models:
+            header += [other, f"delta({other})"]
         print("| " + " | ".join(header) + " |")
         print("|" + "|".join(["---"] * len(header)) + "|")
         for dataset in cls_datasets:
@@ -122,6 +124,9 @@ def print_compact_markdown(by_dataset, model_names, baseline):
             for other in other_models:
                 other_vals = [metrics.get(m, {}).get(other) for m in COMPACT_CLS_METRICS]
                 row.append(" / ".join(_fmt(v) for v in other_vals))
+                row.append(" / ".join(
+                    _fmt_delta(v, b) for v, b in zip(other_vals, base_vals)
+                ))
             print("| " + " | ".join(row) + " |")
         print()
 
