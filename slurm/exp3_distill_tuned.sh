@@ -53,8 +53,33 @@ export RDZV_PORT=29400
 # starts fresh at the final batch-size/node config for the full 30 epochs -- no
 # mid-training regime switch. That makes it directly comparable to itself, but means
 # it is NOT trained under the identical step-by-step history as exp1/exp2's checkpoints
-# (only same total epochs/data/seed/hyperparameters). Keep that caveat in mind if the
-# comparison ever needs to be bulletproof rather than a first directional read.
+# (only same total epochs/data/seed/hyperparameters). It also trains on the 1M-sample
+# evobio10m-v3.3/224x224/train_small shard set (64 shards) instead of the full 10M
+# train/ set exp1/exp2 used, as a faster first pass at this hyperparameter direction --
+# not a like-for-like data comparison, see conversation notes before promoting any
+# result here to the main ablation table.
+#
+# NOTE ON TEACHER EMBEDDINGS: exp1/exp2 read precomputed frozen teacher image
+# embeddings from --teacher-embed-dir, matched to --train-data shards by basename (see
+# src/training/data.py's add_teacher_embed_url/tarfile_pairs_to_samples_nothrow). That
+# precomputed dir was built from the full train/ shards, not train_small/ -- if
+# train_small isn't byte-identical to the first 64 shards of train/ (e.g. it's a
+# resampled repackaging), the basename-matched embeddings would mostly miss on sample
+# key and get silently dropped (safely, not misaligned -- but that could starve this
+# run of most of its distillation signal without erroring). --teacher-embed-dir is
+# intentionally omitted below so the teacher's image tower runs live on train_small's
+# actual images instead, trading some extra per-step compute for guaranteed
+# correctness. Switch back to a --teacher-embed-dir once/if a train_small-specific
+# embedding dir is precomputed via slurm/precompute_teacher_embeddings.sh.
+#
+# NOTE ON --warmup: exp1/exp2's --warmup 1000 was sized for the 10M train/ set's
+# ~9150 total steps (global_batch_size = batch-size(4096) * world_size(8) = 32768;
+# ~305 steps/epoch * 30 epochs). train_small has ~1M samples -> ~24-32 steps/epoch
+# (see src/training/data.py:534-541's per-worker batch chunking) -> ~700-960 total
+# steps for the same 30 epochs, which is LESS than a 1000-step warmup -- LR would
+# still be ramping up linearly when training ends, never reaching peak or entering
+# cosine decay. Lowered to 100 (roughly the same ~11% warmup fraction as exp1/exp2:
+# 1000/9150 approx 100/900).
 srun torchrun --nnodes=2 --nproc_per_node 4 \
   --rdzv_id=$RANDOM --rdzv_backend=c10d --rdzv_endpoint=$RDZV_HOST:$RDZV_PORT \
   -m src.training.main \
@@ -65,13 +90,12 @@ srun torchrun --nnodes=2 --nproc_per_node 4 \
   --distill-pretrained 'unused' \
   --distill-temperature 2.0 \
   --distill-loss-weight 0.5 \
-  --teacher-embed-dir '/fs/scratch/PAS2136/chenxujiang/bioclip-teacher-embeddings-evobio10m' \
-  --train-data '/fs/ess/PAS2136/open_clip/data/evobio10m-v3.3/224x224/train/shard-{000000..000159}.tar' \
+  --train-data '/fs/ess/PAS2136/open_clip/data/evobio10m-v3.3/224x224/train_small/shard-{000000..000063}.tar' \
   --val-data '/fs/ess/PAS2136/open_clip/data/evobio10m-v3.3/224x224/val/shard-{000000..000064}.tar' \
   --dataset-type 'webdataset' \
   --dataset-resampled \
   --save-frequency 1 \
-  --warmup 1000 \
+  --warmup 100 \
   --batch-size 4096 \
   --accum-freq 1 \
   --epochs 30 \
