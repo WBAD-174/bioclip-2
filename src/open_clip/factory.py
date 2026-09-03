@@ -798,6 +798,8 @@ def _set_model_device_and_precision(
 def create_loss(args):
     if args.distill:
         return DistillClipLoss(
+            distill_temperature=args.distill_temperature,
+            distill_loss_weight=args.distill_loss_weight,
             local_loss=args.local_loss,
             gather_with_grad=args.gather_with_grad,
             cache_labels=True,

@@ -244,8 +244,28 @@ class CoCaLoss(ClipLoss):
 
 class DistillClipLoss(ClipLoss):
 
+    def __init__(
+            self,
+            distill_temperature: float = 1.0,
+            distill_loss_weight: float = 1.0,
+            **kwargs,
+    ):
+        super().__init__(**kwargs)
+        # distill_temperature=1.0 / distill_loss_weight=1.0 exactly reproduces the prior
+        # behavior (student/teacher's own contrastively-learned logit_scale, summed 1:1
+        # with contrastive_loss) -- both are opt-in.
+        self.distill_temperature = distill_temperature
+        self.distill_loss_weight = distill_loss_weight
+
     def dist_loss(self, teacher_logits, student_logits):
-        return -(teacher_logits.softmax(dim=1) * student_logits.log_softmax(dim=1)).sum(dim=1).mean(dim=0)
+        t = self.distill_temperature
+        loss = -(
+            (teacher_logits / t).softmax(dim=1) * (student_logits / t).log_softmax(dim=1)
+        ).sum(dim=1).mean(dim=0)
+        # Hinton et al. 2015: softening by T shrinks gradients w.r.t. the logits by
+        # ~1/T^2, so rescale by T^2 to keep the distillation loss magnitude (and thus
+        # its balance against contrastive_loss) roughly comparable across T.
+        return loss * (t ** 2)
 
     def forward(
             self,
@@ -274,6 +294,7 @@ class DistillClipLoss(ClipLoss):
             self.dist_loss(dist_logits_per_image, logits_per_image) +
             self.dist_loss(dist_logits_per_text, logits_per_text)
         ) / 2
+        distill_loss = distill_loss * self.distill_loss_weight
 
         if output_dict:
             return {"contrastive_loss": contrastive_loss, "distill_loss": distill_loss}

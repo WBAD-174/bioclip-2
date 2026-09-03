@@ -17,26 +17,30 @@ cd /users/PAS2136/chenxujiang/bioclip-2/bioclip-2
 export CUDA_VISIBLE_DEVICES=0
 
 # Controlled ablation eval: Exp1 (no distillation, OpenAI-CLIP init, plain contrastive
-# on evobio10m-v3.3 TOL-10M) vs Exp2 (identical config + BioCLIP 2.5 distillation).
-# Both compared here at epoch 30 -- the full, final checkpoint for both runs (the
-# earlier epoch-12 comparison, in bioclip-ablation-eval/logs, was a matched
-# intermediate check while both were still training under the 48h wall-time limit;
-# keep that directory around for the epoch12-vs-epoch30 trend, don't overwrite it --
-# this run writes to a separate -epoch30 log dir instead).
+# on evobio10m-v3.3 TOL-10M) vs Exp2 (identical config + BioCLIP 2.5 distillation) vs
+# Exp3 (same as Exp2 but with --distill-temperature 2.0 --distill-loss-weight 0.5, see
+# slurm/exp3_distill_tuned.sh). All compared here at epoch 30 -- the full, final
+# checkpoint for each run (the earlier epoch-12 comparison, in
+# bioclip-ablation-eval/logs, was a matched intermediate check while exp1/exp2 were
+# still training under the 48h wall-time limit; keep that directory around for the
+# epoch12-vs-epoch30 trend, don't overwrite it -- this run writes to a separate
+# -epoch30 log dir instead).
 #
 # Reuses the same eval harness as slurm/eval_hypothesis1.sh (classification.py =
 # proposal Option 1 inter-species accuracy, geometry_eval.py = Option 3 FDR / intra-
 # species orthogonality) against the same four benchmark families. See that script's
 # header comment for the one-time data-prep commands (NABirds/Meta-Album/Rare Species/
 # CameraTrap) -- already done, not repeated here.
-MODEL_NAMES=("exp1_no_distill" "exp2_distill")
+MODEL_NAMES=("exp1_no_distill" "exp2_distill" "exp3_distill_tuned")
 MODEL_TYPES=(
+  "ViT-B-16"
   "ViT-B-16"
   "ViT-B-16"
 )
 PRETRAINED_PATHS=(
   "/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-logs/exp1-no-distill-evobio10m/checkpoints/epoch_30.pt"
   "/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-logs/exp2-distill-evobio10m/checkpoints/epoch_30.pt"
+  "/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-logs/exp3-distill-tuned-evobio10m/checkpoints/epoch_30.pt"
 )
 
 LOG_FILEPATH="/fs/scratch/PAS2136/chenxujiang/bioclip-ablation-eval-epoch30/logs"

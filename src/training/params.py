@@ -471,6 +471,23 @@ def parse_args(args):
         help='Which pre-trained weights to distill from, if any.'
     )
     parser.add_argument(
+        "--distill-temperature",
+        type=float,
+        default=1.0,
+        help='Temperature for softening teacher/student logits in the distillation KD loss '
+        '(Hinton et al. 2015 style: both logit sets divided by T before softmax/log_softmax, '
+        'loss rescaled by T^2). 1.0 reproduces the previous behavior (each model\'s own '
+        'contrastively-learned logit_scale, unmodified). Higher T = softer, more information '
+        'from non-argmax teacher logits transferred.'
+    )
+    parser.add_argument(
+        "--distill-loss-weight",
+        type=float,
+        default=1.0,
+        help='Weight on distill_loss before summing with contrastive_loss (contrastive_loss '
+        'weight is fixed at 1.0). 1.0 reproduces the previous behavior (summed 1:1).'
+    )
+    parser.add_argument(
         "--teacher-embed-dir",
         default=None,
         help='Directory of precomputed frozen teacher image embeddings (from '
